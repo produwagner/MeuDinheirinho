@@ -193,9 +193,22 @@
 
           <!-- Gráfico de Categorias (Dashboard) -->
           <div class="dashboard-card glass-panel flex-column items-center">
-            <div class="card-title-bar w-full">
+            <div class="card-title-bar w-full" style="align-items: center;">
               <h3><i data-lucide="pie-chart"></i> Gastos por Categoria</h3>
-              <span class="helper-text">Mês vigente</span>
+              <select id="category-month-selector" class="card-title-select">
+                <option value="0">Janeiro</option>
+                <option value="1">Fevereiro</option>
+                <option value="2">Março</option>
+                <option value="3">Abril</option>
+                <option value="4">Maio</option>
+                <option value="5">Junho</option>
+                <option value="6">Julho</option>
+                <option value="7">Agosto</option>
+                <option value="8">Setembro</option>
+                <option value="9">Outubro</option>
+                <option value="10">Novembro</option>
+                <option value="11">Dezembro</option>
+              </select>
             </div>
             <div class="chart-container">
               <canvas id="category-chart"></canvas>

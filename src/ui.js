@@ -674,7 +674,6 @@ export function initUI(callbacks) {
       if (callbacks.onPeriodChange) {
         callbacks.onPeriodChange();
       }
-    });
   });
 
 
@@ -735,6 +734,17 @@ export function initUI(callbacks) {
         callbacks.onAddRecurringSalary({ startDate, frequency, value, occurrences, account, description });
       }
       closeSalaryModal();
+    });
+  }
+
+  // 16. Ouvinte do Seletor de Mês do Gráfico de Categorias
+  const categoryMonthSelector = document.getElementById('category-month-selector');
+  if (categoryMonthSelector) {
+    categoryMonthSelector.value = new Date().getMonth();
+    categoryMonthSelector.addEventListener('change', () => {
+      if (callbacks.onPeriodChange) {
+        callbacks.onPeriodChange();
+      }
     });
   }
 }
@@ -1303,26 +1313,30 @@ export function updateDashboard(transactions, configs) {
     }
   }
 
+  const categoryMonthSelector = document.getElementById('category-month-selector');
+  const selectedMonth = categoryMonthSelector ? parseInt(categoryMonthSelector.value) : now.getMonth();
+
   const catNoDataEl = document.getElementById('chart-no-data');
   if (catNoDataEl) {
     const catNoDataTextEl = catNoDataEl.querySelector('p');
     if (catNoDataTextEl) {
-      if (activePeriod === 'diario') {
-        catNoDataTextEl.innerText = viewMode === 'ultimos' ? 'Nenhuma despesa registrada nas últimas 24 horas.' : 'Nenhuma despesa registrada hoje.';
-      } else if (activePeriod === 'semanal') {
-        catNoDataTextEl.innerText = viewMode === 'ultimos' ? 'Nenhuma despesa registrada nos últimos 7 dias.' : 'Nenhuma despesa registrada nesta semana.';
-      } else if (activePeriod === 'anual') {
-        catNoDataTextEl.innerText = viewMode === 'ultimos' ? 'Nenhuma despesa registrada nos últimos 12 meses.' : 'Nenhuma despesa registrada neste ano.';
-      } else {
-        catNoDataTextEl.innerText = viewMode === 'ultimos' ? 'Nenhuma despesa registrada nos últimos 30 dias.' : 'Nenhuma despesa registrada neste mês.';
-      }
+      const monthNames = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+      const selectedMonthName = monthNames[selectedMonth];
+      catNoDataTextEl.innerText = `Nenhuma despesa registrada em ${selectedMonthName}.`;
     }
   }
 
   // 3. Gerar Gráfico de Pizza de Categorias
   const expensesByCategory = {};
-  filteredTxs
-    .filter(tx => tx.type === 'Despesa')
+  transactions
+    .filter(tx => {
+      if (tx.type !== 'Despesa') return false;
+      const txDate = new Date(tx.date + 'T12:00:00');
+      return txDate.getFullYear() === currentYear && txDate.getMonth() === selectedMonth;
+    })
     .forEach(tx => {
       expensesByCategory[tx.category] = (expensesByCategory[tx.category] || 0) + tx.value;
     });
