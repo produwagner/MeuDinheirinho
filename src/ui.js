@@ -972,11 +972,7 @@ export function updateDashboard(transactions, configs) {
         }
       });
 
-      let runningTotal = 0;
-      for (let i = 0; i < 24; i++) {
-        runningTotal += hourlyExpenses[i];
-        cumulativeExpenses.push(runningTotal);
-      }
+      cumulativeExpenses = hourlyExpenses;
 
     } else if (activePeriod === 'semanal') {
       const last7DaysStr = [];
@@ -1008,11 +1004,7 @@ export function updateDashboard(transactions, configs) {
         }
       });
 
-      let runningTotal = 0;
-      for (let i = 0; i < 7; i++) {
-        runningTotal += dailyExpenses[i];
-        cumulativeExpenses.push(runningTotal);
-      }
+      cumulativeExpenses = dailyExpenses;
 
     } else if (activePeriod === 'anual') {
       const monthsKeys = [];
@@ -1055,11 +1047,7 @@ export function updateDashboard(transactions, configs) {
         }
       });
 
-      let runningTotal = 0;
-      for (let i = 0; i < 12; i++) {
-        runningTotal += monthlyExpenses[i];
-        cumulativeExpenses.push(runningTotal);
-      }
+      cumulativeExpenses = monthlyExpenses;
 
     } else {
       // mensal (últimos 30 dias)
@@ -1092,11 +1080,7 @@ export function updateDashboard(transactions, configs) {
         }
       });
 
-      let runningTotal = 0;
-      for (let i = 0; i < 30; i++) {
-        runningTotal += dailyExpenses[i];
-        cumulativeExpenses.push(runningTotal);
-      }
+      cumulativeExpenses = dailyExpenses;
     }
 
   } else {
@@ -1123,11 +1107,7 @@ export function updateDashboard(transactions, configs) {
         }
       });
 
-      let runningTotal = 0;
-      for (let i = 0; i < 24; i++) {
-        runningTotal += hourlyExpenses[i];
-        cumulativeExpenses.push(runningTotal);
-      }
+      cumulativeExpenses = hourlyExpenses;
 
     } else if (activePeriod === 'semanal') {
       const currentDay = now.getDay();
@@ -1161,11 +1141,7 @@ export function updateDashboard(transactions, configs) {
         }
       });
 
-      let runningTotal = 0;
-      for (let i = 0; i < 7; i++) {
-        runningTotal += dailyExpenses[i];
-        cumulativeExpenses.push(runningTotal);
-      }
+      cumulativeExpenses = dailyExpenses;
 
     } else if (activePeriod === 'anual') {
       filteredTxs = transactions.filter(tx => {
@@ -1188,11 +1164,7 @@ export function updateDashboard(transactions, configs) {
         }
       });
 
-      let runningTotal = 0;
-      for (let i = 0; i < 12; i++) {
-        runningTotal += monthlyExpenses[i];
-        cumulativeExpenses.push(runningTotal);
-      }
+      cumulativeExpenses = monthlyExpenses;
 
     } else {
       // mensal (Mês vigente)
@@ -1221,11 +1193,7 @@ export function updateDashboard(transactions, configs) {
           }
         });
 
-      let runningTotal = 0;
-      for (let i = 0; i < lastDayOfMonth; i++) {
-        runningTotal += dailyExpenses[i];
-        cumulativeExpenses.push(runningTotal);
-      }
+      cumulativeExpenses = dailyExpenses;
     }
   }
 
@@ -1474,12 +1442,12 @@ function renderCategoryChart(dataObj) {
 }
 
 // Desenha ou atualiza o gráfico de linha de evolução diária de gastos
-function renderDailyChart(cumulativeExpenses, labels) {
+function renderDailyChart(expensesValues, labels) {
   const ctx = document.getElementById('daily-chart');
   const noDataEl = document.getElementById('daily-chart-no-data');
   const chartContainer = ctx.parentElement;
 
-  const totalExpenses = cumulativeExpenses[cumulativeExpenses.length - 1] || 0;
+  const totalExpenses = expensesValues.reduce((sum, val) => sum + val, 0);
 
   if (totalExpenses === 0) {
     chartContainer.classList.add('hidden');
@@ -1502,7 +1470,7 @@ function renderDailyChart(cumulativeExpenses, labels) {
 
   if (dailyChart) {
     dailyChart.data.labels = labels;
-    dailyChart.data.datasets[0].data = cumulativeExpenses;
+    dailyChart.data.datasets[0].data = expensesValues;
     dailyChart.data.datasets[0].borderColor = lineColor;
     dailyChart.data.datasets[0].backgroundColor = fillColor;
     dailyChart.data.datasets[0].pointBackgroundColor = lineColor;
@@ -1517,8 +1485,8 @@ function renderDailyChart(cumulativeExpenses, labels) {
       data: {
         labels: labels,
         datasets: [{
-          label: 'Gasto Acumulado',
-          data: cumulativeExpenses,
+          label: 'Gasto',
+          data: expensesValues,
           borderColor: lineColor,
           backgroundColor: fillColor,
           borderWidth: 2,
@@ -1539,7 +1507,7 @@ function renderDailyChart(cumulativeExpenses, labels) {
           tooltip: {
             callbacks: {
               label: function(context) {
-                return ' Gasto Total: ' + formatBRL(context.parsed.y);
+                return ' Gasto: ' + formatBRL(context.parsed.y);
               }
             }
           }
