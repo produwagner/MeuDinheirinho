@@ -192,7 +192,9 @@ async function sincronizarDados() {
 }
 
 // Inicialização Geral
-window.addEventListener('DOMContentLoaded', () => {
+// NOTA: scripts type="module" são sempre diferidos (deferred), o DOM já está
+// pronto quando o módulo executa — não precisamos de DOMContentLoaded.
+(() => {
   // Inicializar ícones do Lucide
   lucide.createIcons();
 

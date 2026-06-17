@@ -61,7 +61,14 @@ export function initAuth(onStatusChange) {
       callback: (tokenResponse) => {
         if (tokenResponse.error !== undefined) {
           console.error('Erro na autenticação Google:', tokenResponse);
-          alert('Erro ao autenticar: ' + tokenResponse.error_description);
+          // Erros comuns: popup_closed_by_user, access_denied, origin_mismatch
+          if (tokenResponse.error === 'popup_closed_by_user') {
+            console.warn('Login cancelado pelo usuário.');
+          } else if (tokenResponse.error === 'origin_mismatch') {
+            alert('Erro de origem: a URL atual não está autorizada no Google Cloud Console para este Client ID. Adicione a origem correta nas credenciais OAuth.');
+          } else {
+            alert('Erro ao autenticar: ' + (tokenResponse.error_description || tokenResponse.error));
+          }
           return;
         }
 
@@ -88,27 +95,60 @@ export function initAuth(onStatusChange) {
         });
       },
     });
+    console.log('Google Identity Services inicializado com sucesso.');
   } catch (err) {
     console.error('Falha ao inicializar Google Identity Services Client:', err);
+    tokenClient = null;
   }
 }
 
 /**
- * Dispara o fluxo de login
+ * Aguarda o SDK do Google estar pronto e dispara o fluxo de login
  */
 export function login() {
-  if (!tokenClient) {
-    // Se mudou o Client ID, reinicializa
-    initAuth(onAuthChangeCallback);
+  const btn = document.getElementById('btn-login');
+  if (btn) {
+    btn.disabled = true;
+    btn.style.opacity = '0.7';
   }
 
-  if (tokenClient) {
-    // Solicitar token (abre popup do Google)
-    // prompt: '' permite login silencioso se já autorizado
-    tokenClient.requestAccessToken({ prompt: 'consent' });
-  } else {
-    alert('O SDK do Google não pôde ser carregado. Verifique sua conexão com a internet.');
+  function tryLogin(attemptsLeft) {
+    if (tokenClient) {
+      if (btn) {
+        btn.disabled = false;
+        btn.style.opacity = '';
+      }
+      // Solicitar token (abre popup do Google)
+      tokenClient.requestAccessToken({ prompt: 'consent' });
+      return;
+    }
+
+    // SDK ainda não carregou — tentar inicializar
+    if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+      initAuth(onAuthChangeCallback);
+      if (tokenClient) {
+        if (btn) {
+          btn.disabled = false;
+          btn.style.opacity = '';
+        }
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+        return;
+      }
+    }
+
+    if (attemptsLeft > 0) {
+      setTimeout(() => tryLogin(attemptsLeft - 1), 200);
+    } else {
+      if (btn) {
+        btn.disabled = false;
+        btn.style.opacity = '';
+      }
+      alert('O SDK do Google não pôde ser carregado. Verifique sua conexão com a internet e recarregue a página.');
+    }
   }
+
+  // Tenta por até 5 segundos (25 tentativas x 200ms)
+  tryLogin(25);
 }
 
 /**
