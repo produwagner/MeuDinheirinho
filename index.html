@@ -178,9 +178,15 @@
 
           <!-- Gráfico de Evolução Diária (Dashboard) -->
           <div class="dashboard-card glass-panel flex-column items-center">
-            <div class="card-title-bar w-full">
-              <h3><i data-lucide="trending-up"></i> Evolução do seus gastos</h3>
-              <span class="helper-text" id="daily-chart-period-subtitle">Mês vigente</span>
+            <div class="card-title-bar w-full" style="align-items: center;">
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <h3><i data-lucide="trending-up"></i> Evolução do seus gastos</h3>
+                <span class="helper-text" id="daily-chart-period-subtitle" style="font-size: 0.8rem; margin: 0;">Mês vigente</span>
+              </div>
+              <select id="evolution-view-mode-selector" class="card-title-select">
+                <option value="atual">Período Atual</option>
+                <option value="ultimos">Últimos</option>
+              </select>
             </div>
             <div class="chart-container" style="max-width: 100%; height: 280px; width: 100%;">
               <canvas id="daily-chart"></canvas>

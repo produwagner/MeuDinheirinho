@@ -10,15 +10,12 @@ let onAuthChangeCallback = null;
 
 // Obter as credenciais salvas (Client ID personalizado)
 export function getSavedClientId() {
-  return localStorage.getItem('meudinheirinho_client_id') || DEFAULT_CLIENT_ID;
+  return DEFAULT_CLIENT_ID;
 }
 
 export function saveClientId(newClientId) {
-  if (newClientId && newClientId.trim()) {
-    localStorage.setItem('meudinheirinho_client_id', newClientId.trim());
-  } else {
-    localStorage.removeItem('meudinheirinho_client_id');
-  }
+  // Como a configuração foi descontinuada, esta função agora limpa a chave
+  localStorage.removeItem('meudinheirinho_client_id');
 }
 
 /**
@@ -27,6 +24,9 @@ export function saveClientId(newClientId) {
  */
 export function initAuth(onStatusChange) {
   onAuthChangeCallback = onStatusChange;
+  
+  // Limpar qualquer resíduo do Client ID no localStorage
+  localStorage.removeItem('meudinheirinho_client_id');
   
   // Tentar restaurar sessão existente do sessionStorage
   const savedToken = sessionStorage.getItem('meudinheirinho_access_token');

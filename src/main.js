@@ -196,28 +196,8 @@ window.addEventListener('DOMContentLoaded', () => {
   // Inicializar ícones do Lucide
   lucide.createIcons();
 
-  // Configurar input de Client ID na tela de login
-  const clientIdInput = document.getElementById('google-client-id-input');
-  if (clientIdInput) {
-    const savedId = getSavedClientId();
-    // Se for o ID padrão de demonstração, não preenche para ficar mais limpo
-    if (savedId && savedId !== DEFAULT_CLIENT_ID) {
-      clientIdInput.value = savedId;
-    }
-
-    clientIdInput.addEventListener('change', (e) => {
-      saveClientId(e.target.value);
-      // Reinicializar o cliente OAuth do Google
-      initAuth(handleAuthChange);
-    });
-  }
-
   // Vincular eventos de Login e Logout
   document.getElementById('btn-login').addEventListener('click', () => {
-    // Se o usuário digitou um Client ID na hora do login, salva
-    if (clientIdInput && clientIdInput.value.trim()) {
-      saveClientId(clientIdInput.value);
-    }
     login();
   });
   

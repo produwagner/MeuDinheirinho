@@ -747,6 +747,19 @@ export function initUI(callbacks) {
       }
     });
   }
+
+  // 17. Ouvinte do Seletor de Modo de Visualização do Gráfico de Evolução
+  const evolutionViewModeSelector = document.getElementById('evolution-view-mode-selector');
+  if (evolutionViewModeSelector) {
+    const storedViewMode = localStorage.getItem('meudinheirinho_evolution_view_mode') || 'atual';
+    evolutionViewModeSelector.value = storedViewMode;
+    evolutionViewModeSelector.addEventListener('change', () => {
+      localStorage.setItem('meudinheirinho_evolution_view_mode', evolutionViewModeSelector.value);
+      if (callbacks.onPeriodChange) {
+        callbacks.onPeriodChange();
+      }
+    });
+  }
 }
 
 // Helpers para exibir / ocultar loading
@@ -901,9 +914,35 @@ export function updateDashboard(transactions, configs) {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth(); // 0-11
 
-  // Obter período ativo
+  // Obter período ativo e modo de visualização
   const activePeriod = localStorage.getItem('meudinheirinho_dashboard_period') || 'mensal';
-  const viewMode = 'atual';
+  const viewMode = localStorage.getItem('meudinheirinho_evolution_view_mode') || 'atual';
+
+  // Atualizar as opções do seletor de modo de visualização (atual vs ultimos) no card de evolução
+  const evolutionViewModeSelector = document.getElementById('evolution-view-mode-selector');
+  if (evolutionViewModeSelector) {
+    const optAtual = evolutionViewModeSelector.querySelector('option[value="atual"]');
+    const optUltimos = evolutionViewModeSelector.querySelector('option[value="ultimos"]');
+    if (optAtual && optUltimos) {
+      if (activePeriod === 'diario') {
+        optAtual.innerText = 'Dia de Hoje';
+        optUltimos.innerText = 'Últimas 24h';
+      } else if (activePeriod === 'semanal') {
+        optAtual.innerText = 'Semana Atual';
+        optUltimos.innerText = 'Últimos 7 dias';
+      } else if (activePeriod === 'anual') {
+        optAtual.innerText = 'Ano Atual';
+        optUltimos.innerText = 'Últimos 12 meses';
+      } else {
+        optAtual.innerText = 'Mês Atual';
+        optUltimos.innerText = 'Últimos 30 dias';
+      }
+    }
+  }
+
+  // Obter mês selecionado para o gráfico de categorias
+  const categoryMonthSelector = document.getElementById('category-month-selector');
+  const selectedMonth = categoryMonthSelector ? Number(categoryMonthSelector.value) : currentMonth;
 
   // Helper para obter a data/hora exata de uma transação
   function getTxDate(tx) {
