@@ -677,6 +677,25 @@ export function initUI(callbacks) {
     });
   });
 
+  // 14b. Eventos do Seletor de Modo de Visualização no Dashboard
+  const storedViewMode = localStorage.getItem('meudinheirinho_dashboard_view_mode') || 'ultimos';
+  const viewModeButtons = document.querySelectorAll('.btn-view-mode');
+  viewModeButtons.forEach(btn => {
+    if (btn.getAttribute('data-mode') === storedViewMode) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+    btn.addEventListener('click', () => {
+      viewModeButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      localStorage.setItem('meudinheirinho_dashboard_view_mode', btn.getAttribute('data-mode'));
+      if (callbacks.onPeriodChange) {
+        callbacks.onPeriodChange();
+      }
+    });
+  });
+
   // 15. Controlar Modal de Salário Recorrente
   const salaryModal = document.getElementById('modal-recurring-salary');
   const btnAddSalary = document.getElementById('btn-add-salary');
@@ -884,70 +903,330 @@ function getBillingCycleSum(transactions, cardName, closingDay) {
 }
 
 // Atualiza o painel principal Dashboard
-// Atualiza o painel principal Dashboard
 export function updateDashboard(transactions, configs) {
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth(); // 0-11
 
-  // Obter período ativo
+  // Obter período ativo e modo de visualização
   const activePeriod = localStorage.getItem('meudinheirinho_dashboard_period') || 'mensal';
+  const viewMode = localStorage.getItem('meudinheirinho_dashboard_view_mode') || 'ultimos';
 
-  // 1. Filtrar transações baseado no período ativo para os cards de KPI
+  // Helper para obter a data/hora exata de uma transação
+  function getTxDate(tx) {
+    if (tx.id && tx.id.startsWith('tx_')) {
+      const parts = tx.id.split('_');
+      const ts = Number(parts[1]);
+      if (!isNaN(ts) && ts > 0) {
+        return new Date(ts);
+      }
+    }
+    return new Date(tx.date + 'T12:00:00');
+  }
+
+  // 1. Filtrar transações baseado no período ativo e modo de visualização para os cards de KPI
   let filteredTxs = [];
   let periodSubtitle = '';
   let kpiPeriodLabel = '';
-  let positiveBalanceText = 'Balanço positivo no mês';
-  let negativeBalanceText = 'Gasto superior ao arrecadado';
+  let positiveBalanceText = '';
+  let negativeBalanceText = '';
 
-  if (activePeriod === 'diario') {
-    const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-    filteredTxs = transactions.filter(tx => tx.date === todayStr);
-    periodSubtitle = 'Últimos 7 dias';
-    kpiPeriodLabel = 'Hoje';
-    positiveBalanceText = 'Balanço positivo hoje';
-    negativeBalanceText = 'Gasto superior ao recebido hoje';
-  } else if (activePeriod === 'semanal') {
-    const currentDay = now.getDay();
-    const distanceToMonday = currentDay === 0 ? 6 : currentDay - 1;
-    const mondayDate = new Date(now);
-    mondayDate.setDate(now.getDate() - distanceToMonday);
-    mondayDate.setHours(0, 0, 0, 0);
+  // Preparar estruturas para o gráfico de linha de evolução
+  let daysLabels = [];
+  let cumulativeExpenses = [];
 
-    const weekDaysStr = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(mondayDate);
-      d.setDate(mondayDate.getDate() + i);
-      const dStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-      weekDaysStr.push(dStr);
+  if (viewMode === 'ultimos') {
+    // MODO: Últimos X
+    if (activePeriod === 'diario') {
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      filteredTxs = transactions.filter(tx => {
+        const txDate = getTxDate(tx);
+        const diff = now.getTime() - txDate.getTime();
+        return diff >= 0 && diff <= oneDayMs;
+      });
+      periodSubtitle = 'Últimas 24 horas';
+      kpiPeriodLabel = 'Últimas 24h';
+      positiveBalanceText = 'Balanço positivo nas últimas 24h';
+      negativeBalanceText = 'Gasto superior ao recebido nas últimas 24h';
+
+      // Gráfico: 24h (de 23h atrás até a hora atual)
+      const hourlyExpenses = Array(24).fill(0);
+      const startHourTime = new Date(now.getTime() - 23 * 60 * 60 * 1000);
+      startHourTime.setMinutes(0, 0, 0); // Alinhar ao início da hora
+
+      for (let i = 0; i < 24; i++) {
+        const slotTime = new Date(startHourTime.getTime() + i * 60 * 60 * 1000);
+        daysLabels.push(String(slotTime.getHours()).padStart(2, '0') + 'h');
+      }
+
+      transactions.forEach(tx => {
+        if (tx.type === 'Despesa') {
+          const txDate = getTxDate(tx);
+          const diff = txDate.getTime() - startHourTime.getTime();
+          if (diff >= 0 && diff < 24 * 60 * 60 * 1000) {
+            const slotIdx = Math.floor(diff / (60 * 60 * 1000));
+            if (slotIdx >= 0 && slotIdx < 24) {
+              hourlyExpenses[slotIdx] += tx.value;
+            }
+          }
+        }
+      });
+
+      let runningTotal = 0;
+      for (let i = 0; i < 24; i++) {
+        runningTotal += hourlyExpenses[i];
+        cumulativeExpenses.push(runningTotal);
+      }
+
+    } else if (activePeriod === 'semanal') {
+      const last7DaysStr = [];
+      const startOf7Days = new Date(now);
+      startOf7Days.setDate(now.getDate() - 6);
+      startOf7Days.setHours(0, 0, 0, 0);
+
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(startOf7Days);
+        d.setDate(startOf7Days.getDate() + i);
+        const dStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        last7DaysStr.push(dStr);
+        daysLabels.push(String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0'));
+      }
+
+      filteredTxs = transactions.filter(tx => last7DaysStr.includes(tx.date));
+      periodSubtitle = 'Últimos 7 dias';
+      kpiPeriodLabel = 'Últimos 7 dias';
+      positiveBalanceText = 'Balanço positivo nos últimos 7 dias';
+      negativeBalanceText = 'Gasto superior nos últimos 7 dias';
+
+      const dailyExpenses = Array(7).fill(0);
+      transactions.forEach(tx => {
+        if (tx.type === 'Despesa') {
+          const idx = last7DaysStr.indexOf(tx.date);
+          if (idx !== -1) {
+            dailyExpenses[idx] += tx.value;
+          }
+        }
+      });
+
+      let runningTotal = 0;
+      for (let i = 0; i < 7; i++) {
+        runningTotal += dailyExpenses[i];
+        cumulativeExpenses.push(runningTotal);
+      }
+
+    } else if (activePeriod === 'anual') {
+      const monthsKeys = [];
+      const startMonthDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(startMonthDate.getFullYear(), startMonthDate.getMonth() + i, 1);
+        const year = d.getFullYear();
+        const month = d.getMonth();
+        monthsKeys.push(`${year}-${String(month + 1).padStart(2, '0')}`);
+
+        const labelMonthName = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+        const capitalizedMonthName = labelMonthName.charAt(0).toUpperCase() + labelMonthName.slice(1);
+        daysLabels.push(`${capitalizedMonthName}/${String(year).slice(-2)}`);
+      }
+
+      filteredTxs = transactions.filter(tx => {
+        const txParts = tx.date.split('-');
+        if (txParts.length === 3) {
+          return monthsKeys.includes(`${txParts[0]}-${txParts[1]}`);
+        }
+        return false;
+      });
+      periodSubtitle = 'Últimos 12 meses';
+      kpiPeriodLabel = 'Últimos 12 meses';
+      positiveBalanceText = 'Balanço positivo nos últimos 12 meses';
+      negativeBalanceText = 'Gasto superior nos últimos 12 meses';
+
+      const monthlyExpenses = Array(12).fill(0);
+      transactions.forEach(tx => {
+        if (tx.type === 'Despesa') {
+          const txParts = tx.date.split('-');
+          if (txParts.length === 3) {
+            const txYearMonth = `${txParts[0]}-${txParts[1]}`;
+            const idx = monthsKeys.indexOf(txYearMonth);
+            if (idx !== -1) {
+              monthlyExpenses[idx] += tx.value;
+            }
+          }
+        }
+      });
+
+      let runningTotal = 0;
+      for (let i = 0; i < 12; i++) {
+        runningTotal += monthlyExpenses[i];
+        cumulativeExpenses.push(runningTotal);
+      }
+
+    } else {
+      // mensal (últimos 30 dias)
+      const last30DaysStr = [];
+      const startOf30Days = new Date(now);
+      startOf30Days.setDate(now.getDate() - 29);
+      startOf30Days.setHours(0, 0, 0, 0);
+
+      for (let i = 0; i < 30; i++) {
+        const d = new Date(startOf30Days);
+        d.setDate(startOf30Days.getDate() + i);
+        const dStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        last30DaysStr.push(dStr);
+        daysLabels.push(String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0'));
+      }
+
+      filteredTxs = transactions.filter(tx => last30DaysStr.includes(tx.date));
+      periodSubtitle = 'Últimos 30 dias';
+      kpiPeriodLabel = 'Últimos 30 dias';
+      positiveBalanceText = 'Balanço positivo nos últimos 30 dias';
+      negativeBalanceText = 'Gasto superior nos últimos 30 dias';
+
+      const dailyExpenses = Array(30).fill(0);
+      transactions.forEach(tx => {
+        if (tx.type === 'Despesa') {
+          const idx = last30DaysStr.indexOf(tx.date);
+          if (idx !== -1) {
+            dailyExpenses[idx] += tx.value;
+          }
+        }
+      });
+
+      let runningTotal = 0;
+      for (let i = 0; i < 30; i++) {
+        runningTotal += dailyExpenses[i];
+        cumulativeExpenses.push(runningTotal);
+      }
     }
 
-    filteredTxs = transactions.filter(tx => weekDaysStr.includes(tx.date));
-    periodSubtitle = 'Esta semana (Segunda a Domingo)';
-    kpiPeriodLabel = 'Esta Semana';
-    positiveBalanceText = 'Balanço positivo na semana';
-    negativeBalanceText = 'Gasto superior ao recebido na semana';
-  } else if (activePeriod === 'anual') {
-    filteredTxs = transactions.filter(tx => {
-      const txDate = new Date(tx.date + 'T12:00:00');
-      return txDate.getFullYear() === currentYear;
-    });
-    periodSubtitle = `Janeiro a Dezembro de ${currentYear}`;
-    kpiPeriodLabel = `Ano de ${currentYear}`;
-    positiveBalanceText = 'Balanço positivo no ano';
-    negativeBalanceText = 'Gasto superior ao recebido no ano';
   } else {
-    // mensal
-    filteredTxs = transactions.filter(tx => {
-      const txDate = new Date(tx.date + 'T12:00:00');
-      return txDate.getFullYear() === currentYear && txDate.getMonth() === currentMonth;
-    });
-    const monthName = now.toLocaleDateString('pt-BR', { month: 'long' });
-    const capitalizedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
-    periodSubtitle = `Mês vigente (${capitalizedMonth})`;
-    kpiPeriodLabel = capitalizedMonth;
-    positiveBalanceText = 'Balanço positivo no mês';
-    negativeBalanceText = 'Gasto superior ao arrecadado';
+    // MODO: Período Atual (Calendário)
+    if (activePeriod === 'diario') {
+      const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+      filteredTxs = transactions.filter(tx => tx.date === todayStr);
+      periodSubtitle = 'Hoje (24h)';
+      kpiPeriodLabel = 'Hoje';
+      positiveBalanceText = 'Balanço positivo hoje';
+      negativeBalanceText = 'Gasto superior hoje';
+
+      // Gráfico: 24h de hoje (00:00 às 23:00)
+      daysLabels = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0') + 'h');
+      const hourlyExpenses = Array(24).fill(0);
+
+      transactions.forEach(tx => {
+        if (tx.type === 'Despesa' && tx.date === todayStr) {
+          const txDate = getTxDate(tx);
+          const hour = txDate.getHours();
+          if (hour >= 0 && hour < 24) {
+            hourlyExpenses[hour] += tx.value;
+          }
+        }
+      });
+
+      let runningTotal = 0;
+      for (let i = 0; i < 24; i++) {
+        runningTotal += hourlyExpenses[i];
+        cumulativeExpenses.push(runningTotal);
+      }
+
+    } else if (activePeriod === 'semanal') {
+      const currentDay = now.getDay();
+      const distanceToMonday = currentDay === 0 ? 6 : currentDay - 1;
+      const mondayDate = new Date(now);
+      mondayDate.setDate(now.getDate() - distanceToMonday);
+      mondayDate.setHours(0, 0, 0, 0);
+
+      const weekDaysStr = [];
+      daysLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(mondayDate);
+        d.setDate(mondayDate.getDate() + i);
+        const dStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        weekDaysStr.push(dStr);
+      }
+
+      filteredTxs = transactions.filter(tx => weekDaysStr.includes(tx.date));
+      periodSubtitle = 'Esta semana (Segunda a Domingo)';
+      kpiPeriodLabel = 'Semana Atual';
+      positiveBalanceText = 'Balanço positivo na semana';
+      negativeBalanceText = 'Gasto superior na semana';
+
+      const dailyExpenses = Array(7).fill(0);
+      transactions.forEach(tx => {
+        if (tx.type === 'Despesa') {
+          const idx = weekDaysStr.indexOf(tx.date);
+          if (idx !== -1) {
+            dailyExpenses[idx] += tx.value;
+          }
+        }
+      });
+
+      let runningTotal = 0;
+      for (let i = 0; i < 7; i++) {
+        runningTotal += dailyExpenses[i];
+        cumulativeExpenses.push(runningTotal);
+      }
+
+    } else if (activePeriod === 'anual') {
+      filteredTxs = transactions.filter(tx => {
+        const txDate = new Date(tx.date + 'T12:00:00');
+        return txDate.getFullYear() === currentYear;
+      });
+      periodSubtitle = `Janeiro a Dezembro de ${currentYear}`;
+      kpiPeriodLabel = `Ano Atual (${currentYear})`;
+      positiveBalanceText = 'Balanço positivo no ano';
+      negativeBalanceText = 'Gasto superior no ano';
+
+      daysLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      const monthlyExpenses = Array(12).fill(0);
+      transactions.forEach(tx => {
+        if (tx.type === 'Despesa') {
+          const txDate = new Date(tx.date + 'T12:00:00');
+          if (txDate.getFullYear() === currentYear) {
+            monthlyExpenses[txDate.getMonth()] += tx.value;
+          }
+        }
+      });
+
+      let runningTotal = 0;
+      for (let i = 0; i < 12; i++) {
+        runningTotal += monthlyExpenses[i];
+        cumulativeExpenses.push(runningTotal);
+      }
+
+    } else {
+      // mensal (Mês vigente)
+      filteredTxs = transactions.filter(tx => {
+        const txDate = new Date(tx.date + 'T12:00:00');
+        return txDate.getFullYear() === currentYear && txDate.getMonth() === currentMonth;
+      });
+      const monthName = now.toLocaleDateString('pt-BR', { month: 'long' });
+      const capitalizedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+      periodSubtitle = `Mês vigente (${capitalizedMonth})`;
+      kpiPeriodLabel = capitalizedMonth;
+      positiveBalanceText = 'Balanço positivo no mês';
+      negativeBalanceText = 'Gasto superior no mês';
+
+      const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      daysLabels = Array.from({ length: lastDayOfMonth }, (_, i) => String(i + 1).padStart(2, '0'));
+      const dailyExpenses = Array(lastDayOfMonth).fill(0);
+
+      filteredTxs
+        .filter(tx => tx.type === 'Despesa')
+        .forEach(tx => {
+          const txDate = new Date(tx.date + 'T12:00:00');
+          const day = txDate.getDate();
+          if (day >= 1 && day <= lastDayOfMonth) {
+            dailyExpenses[day - 1] += tx.value;
+          }
+        });
+
+      let runningTotal = 0;
+      for (let i = 0; i < lastDayOfMonth; i++) {
+        runningTotal += dailyExpenses[i];
+        cumulativeExpenses.push(runningTotal);
+      }
+    }
   }
 
   const totalReceived = filteredTxs
@@ -1062,13 +1341,13 @@ export function updateDashboard(transactions, configs) {
     const dailyNoDataTextEl = dailyNoDataEl.querySelector('p');
     if (dailyNoDataTextEl) {
       if (activePeriod === 'diario') {
-        dailyNoDataTextEl.innerText = 'Nenhuma despesa registrada hoje.';
+        dailyNoDataTextEl.innerText = viewMode === 'ultimos' ? 'Nenhuma despesa registrada nas últimas 24 horas.' : 'Nenhuma despesa registrada hoje.';
       } else if (activePeriod === 'semanal') {
-        dailyNoDataTextEl.innerText = 'Nenhuma despesa registrada nesta semana.';
+        dailyNoDataTextEl.innerText = viewMode === 'ultimos' ? 'Nenhuma despesa registrada nos últimos 7 dias.' : 'Nenhuma despesa registrada nesta semana.';
       } else if (activePeriod === 'anual') {
-        dailyNoDataTextEl.innerText = 'Nenhuma despesa registrada neste ano.';
+        dailyNoDataTextEl.innerText = viewMode === 'ultimos' ? 'Nenhuma despesa registrada nos últimos 12 meses.' : 'Nenhuma despesa registrada neste ano.';
       } else {
-        dailyNoDataTextEl.innerText = 'Nenhuma despesa registrada neste mês.';
+        dailyNoDataTextEl.innerText = viewMode === 'ultimos' ? 'Nenhuma despesa registrada nos últimos 30 dias.' : 'Nenhuma despesa registrada neste mês.';
       }
     }
   }
@@ -1078,13 +1357,13 @@ export function updateDashboard(transactions, configs) {
     const catNoDataTextEl = catNoDataEl.querySelector('p');
     if (catNoDataTextEl) {
       if (activePeriod === 'diario') {
-        catNoDataTextEl.innerText = 'Nenhuma despesa registrada hoje.';
+        catNoDataTextEl.innerText = viewMode === 'ultimos' ? 'Nenhuma despesa registrada nas últimas 24 horas.' : 'Nenhuma despesa registrada hoje.';
       } else if (activePeriod === 'semanal') {
-        catNoDataTextEl.innerText = 'Nenhuma despesa registrada nesta semana.';
+        catNoDataTextEl.innerText = viewMode === 'ultimos' ? 'Nenhuma despesa registrada nos últimos 7 dias.' : 'Nenhuma despesa registrada nesta semana.';
       } else if (activePeriod === 'anual') {
-        catNoDataTextEl.innerText = 'Nenhuma despesa registrada neste ano.';
+        catNoDataTextEl.innerText = viewMode === 'ultimos' ? 'Nenhuma despesa registrada nos últimos 12 meses.' : 'Nenhuma despesa registrada neste ano.';
       } else {
-        catNoDataTextEl.innerText = 'Nenhuma despesa registrada neste mês.';
+        catNoDataTextEl.innerText = viewMode === 'ultimos' ? 'Nenhuma despesa registrada nos últimos 30 dias.' : 'Nenhuma despesa registrada neste mês.';
       }
     }
   }
@@ -1099,107 +1378,7 @@ export function updateDashboard(transactions, configs) {
 
   renderCategoryChart(expensesByCategory);
 
-  // 4. Gerar Gráfico de Linha de Evolução Diária
-  let daysLabels = [];
-  let cumulativeExpenses = [];
-  
-  if (activePeriod === 'diario') {
-    const dailyExpenses = Array(7).fill(0);
-    const last7DaysStr = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      const dStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-      last7DaysStr.push(dStr);
-      daysLabels.push(String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0'));
-    }
-    
-    transactions.forEach(tx => {
-      if (tx.type === 'Despesa') {
-        const idx = last7DaysStr.indexOf(tx.date);
-        if (idx !== -1) {
-          dailyExpenses[idx] += tx.value;
-        }
-      }
-    });
-    
-    let runningTotal = 0;
-    for (let i = 0; i < 7; i++) {
-      runningTotal += dailyExpenses[i];
-      cumulativeExpenses.push(runningTotal);
-    }
-  } else if (activePeriod === 'semanal') {
-    const currentDay = now.getDay();
-    const distanceToMonday = currentDay === 0 ? 6 : currentDay - 1;
-    const mondayDate = new Date(now);
-    mondayDate.setDate(now.getDate() - distanceToMonday);
-    mondayDate.setHours(0, 0, 0, 0);
-    
-    const weekDaysStr = [];
-    daysLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(mondayDate);
-      d.setDate(mondayDate.getDate() + i);
-      const dStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-      weekDaysStr.push(dStr);
-    }
-    
-    const dailyExpenses = Array(7).fill(0);
-    transactions.forEach(tx => {
-      if (tx.type === 'Despesa') {
-        const idx = weekDaysStr.indexOf(tx.date);
-        if (idx !== -1) {
-          dailyExpenses[idx] += tx.value;
-        }
-      }
-    });
-    
-    let runningTotal = 0;
-    for (let i = 0; i < 7; i++) {
-      runningTotal += dailyExpenses[i];
-      cumulativeExpenses.push(runningTotal);
-    }
-  } else if (activePeriod === 'anual') {
-    daysLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const monthlyExpenses = Array(12).fill(0);
-    transactions.forEach(tx => {
-      if (tx.type === 'Despesa') {
-        const txDate = new Date(tx.date + 'T12:00:00');
-        if (txDate.getFullYear() === currentYear) {
-          monthlyExpenses[txDate.getMonth()] += tx.value;
-        }
-      }
-    });
-    
-    let runningTotal = 0;
-    for (let i = 0; i < 12; i++) {
-      runningTotal += monthlyExpenses[i];
-      cumulativeExpenses.push(runningTotal);
-    }
-  } else {
-    // mensal
-    const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    daysLabels = Array.from({ length: lastDayOfMonth }, (_, i) => String(i + 1).padStart(2, '0'));
-    const dailyExpenses = Array(lastDayOfMonth).fill(0);
-    
-    filteredTxs
-      .filter(tx => tx.type === 'Despesa')
-      .forEach(tx => {
-        const txDate = new Date(tx.date + 'T12:00:00');
-        const day = txDate.getDate();
-        if (day >= 1 && day <= lastDayOfMonth) {
-          dailyExpenses[day - 1] += tx.value;
-        }
-      });
-
-    let runningTotal = 0;
-    for (let i = 0; i < lastDayOfMonth; i++) {
-      runningTotal += dailyExpenses[i];
-      cumulativeExpenses.push(runningTotal);
-    }
-  }
-
-  // Atualizar legenda de subtítulo do gráfico
+  // 4. Atualizar legenda de subtítulo do gráfico
   const chartSubtitleEl = document.getElementById('daily-chart-period-subtitle');
   if (chartSubtitleEl) {
     chartSubtitleEl.innerText = periodSubtitle;

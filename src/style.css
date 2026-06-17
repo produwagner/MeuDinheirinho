@@ -1918,7 +1918,7 @@ body.light-theme .period-selector-container {
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-.btn-period {
+.btn-period, .btn-view-mode {
   background: transparent;
   border: none;
   padding: 6px 14px;
@@ -1931,22 +1931,22 @@ body.light-theme .period-selector-container {
   transition: var(--transition-smooth);
 }
 
-.btn-period:hover {
+.btn-period:hover, .btn-view-mode:hover {
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.03);
 }
 
-body.light-theme .btn-period:hover {
+body.light-theme .btn-period:hover, body.light-theme .btn-view-mode:hover {
   background: rgba(0, 0, 0, 0.03);
 }
 
-.btn-period.active {
+.btn-period.active, .btn-view-mode.active {
   color: var(--text-primary);
   background: rgba(99, 102, 241, 0.15);
   border: 1px solid rgba(99, 102, 241, 0.25);
 }
 
-body.light-theme .btn-period.active {
+body.light-theme .btn-period.active, body.light-theme .btn-view-mode.active {
   color: var(--primary-color);
   background: rgba(79, 70, 229, 0.1);
   border: 1px solid rgba(79, 70, 229, 0.2);
