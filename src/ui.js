@@ -677,24 +677,7 @@ export function initUI(callbacks) {
     });
   });
 
-  // 14b. Eventos do Seletor de Modo de Visualização no Dashboard
-  const storedViewMode = localStorage.getItem('meudinheirinho_dashboard_view_mode') || 'ultimos';
-  const viewModeButtons = document.querySelectorAll('.btn-view-mode');
-  viewModeButtons.forEach(btn => {
-    if (btn.getAttribute('data-mode') === storedViewMode) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
-    }
-    btn.addEventListener('click', () => {
-      viewModeButtons.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      localStorage.setItem('meudinheirinho_dashboard_view_mode', btn.getAttribute('data-mode'));
-      if (callbacks.onPeriodChange) {
-        callbacks.onPeriodChange();
-      }
-    });
-  });
+
 
   // 15. Controlar Modal de Salário Recorrente
   const salaryModal = document.getElementById('modal-recurring-salary');
@@ -908,9 +891,9 @@ export function updateDashboard(transactions, configs) {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth(); // 0-11
 
-  // Obter período ativo e modo de visualização
+  // Obter período ativo
   const activePeriod = localStorage.getItem('meudinheirinho_dashboard_period') || 'mensal';
-  const viewMode = localStorage.getItem('meudinheirinho_dashboard_view_mode') || 'ultimos';
+  const viewMode = 'atual';
 
   // Helper para obter a data/hora exata de uma transação
   function getTxDate(tx) {
