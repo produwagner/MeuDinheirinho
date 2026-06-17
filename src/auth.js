@@ -1,7 +1,7 @@
 /* MÓDULO DE AUTENTICAÇÃO - GOOGLE OAUTH 2.0 */
 
 // Chave padrão de demonstração compartilhada (pode ser sobrescrita pelo usuário nas configurações do app)
-const DEFAULT_CLIENT_ID = '547096596172-fjrukqcnfb3abf833h3fb5uthpcunnv0.apps.googleusercontent.com';
+export const DEFAULT_CLIENT_ID = '547096596172-fjrukqcnfb3abf833h3fb5uthpcunnv0.apps.googleusercontent.com';
 
 let tokenClient = null;
 let accessToken = null;

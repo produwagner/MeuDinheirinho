@@ -1,6 +1,6 @@
 /* PONTO DE ENTRADA PRINCIPAL DA APLICAÇÃO (MAIN) */
 
-import { initAuth, login, logout, getSavedClientId, saveClientId, isAuthenticated } from './auth.js';
+import { initAuth, login, logout, getSavedClientId, saveClientId, isAuthenticated, DEFAULT_CLIENT_ID } from './auth.js';
 import { 
   buscarOuCriarPlanilha, 
   carregarTransacoes, 
@@ -201,7 +201,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if (clientIdInput) {
     const savedId = getSavedClientId();
     // Se for o ID padrão de demonstração, não preenche para ficar mais limpo
-    if (savedId && !savedId.startsWith('350616142721-lbfgcbpeoht80n792q3r5g21h6f58p3d')) {
+    if (savedId && savedId !== DEFAULT_CLIENT_ID) {
       clientIdInput.value = savedId;
     }
 
