@@ -195,8 +195,17 @@ async function sincronizarDados() {
 // NOTA: scripts type="module" são sempre diferidos (deferred), o DOM já está
 // pronto quando o módulo executa — não precisamos de DOMContentLoaded.
 (() => {
-  // Inicializar ícones do Lucide
-  lucide.createIcons();
+  // Inicializar ícones do Lucide (aguarda o CDN carregar se necessário)
+  function initLucide(attemptsLeft) {
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+      lucide.createIcons();
+    } else if (attemptsLeft > 0) {
+      setTimeout(() => initLucide(attemptsLeft - 1), 100);
+    } else {
+      console.warn('Lucide Icons não pôde ser carregado.');
+    }
+  }
+  initLucide(30); // tenta por até 3 segundos
 
   // Vincular eventos de Login e Logout
   document.getElementById('btn-login').addEventListener('click', () => {
