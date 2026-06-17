@@ -488,4 +488,4 @@ async function sincronizarDados() {
     }
   }
   inicializarQuandoGoogleCarregar();
-});
+})();
